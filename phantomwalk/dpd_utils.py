@@ -27,7 +27,6 @@ def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.
     positions_view[:, 1:, :] = starts[:, None, :] + displacements
 
     #pbc
-    positions += L/2
     positions %= L
     positions -= L/2
 
