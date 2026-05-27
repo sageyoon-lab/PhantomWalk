@@ -16,7 +16,7 @@ def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.
     L = np.cbrt(N / density)
 
     positions = np.empty((N, 3))
-    starts = rng.uniform(-L/2, L/2, size=(num_pol, 3))
+    starts = rng.uniform(0, L, size=(num_pol, 3))
 
     thetas = rng.uniform(0,2*np.pi,size=(num_pol,num_mon-1))
     phis = np.arccos(rng.uniform(-1,1,size=(num_pol,num_mon-1)))
@@ -35,7 +35,6 @@ def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.
     positions %= L
     positions -= L/2
 
-    # bonds (vectorized)
     indices = np.arange(N).reshape(num_pol, num_mon)
     bonds = np.column_stack([
         indices[:, :-1].ravel(),
