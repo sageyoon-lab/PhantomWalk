@@ -3,6 +3,7 @@ import freud
 import gsd, gsd.hoomd 
 import hoomd 
 import time
+from cmeutils.sampling import is_equilibrated
 
 def initialize_snapshot_rand_walk(num_pol, num_mon, density=0.85, bond_length=1.0, seed=1234):
     ''' 
@@ -89,6 +90,97 @@ def check_inter_particle_distance(snap,minimum_distance=0.95):
     nlist = aq_query.toNeighborList()
     if len(nlist)==0:
         print("Inter-particle separation reached.")
+        return True
+    else:
+        return False
+
+def add_hoomd_writers(sim):
+    """Add GSD trajectory and log writers to a HOOMD simulation.
+
+    This function creates:
+    - a GSD trajectory writer for particle configurations
+    - a table logger for thermodynamic and force quantities
+    - thermodynamic compute operations for system properties
+
+    Parameters
+    ----------
+    sim : hoomd.Simulation
+        HOOMD simulation object to which writers and
+        computes will be attached.
+
+    Returns
+    -------
+    None
+        This function modifies the simulation object in place
+        and does not return a value.
+
+    """
+    gsd_logger = hoomd.logging.Logger(
+        categories=["scalar", "string", "sequence"]
+    )
+    logger = hoomd.logging.Logger(categories=["scalar", "string"])
+    gsd_logger.add(sim, quantities=["timestep", "tps"])
+    logger.add(sim, quantities=["timestep", "tps"])
+    thermo_props = hoomd.md.compute.ThermodynamicQuantities(filter=hoomd.filter.All())
+    sim.operations.computes.append(thermo_props)
+    log_quantities = [
+            "kinetic_temperature",
+            "potential_energy",
+            "kinetic_energy",
+            "volume",
+            "pressure",
+            "pressure_tensor",
+        ]
+    gsd_logger.add(thermo_props, quantities=log_quantities)
+    logger.add(thermo_props, quantities=log_quantities)
+
+    for f in sim.operations.integrator.forces:
+        logger.add(f, quantities=["energy"])
+        gsd_logger.add(f, quantities=["energy"])
+
+    gsd_writer = hoomd.write.GSD(
+        filename='trajectory.gsd',
+        trigger=hoomd.trigger.Periodic(int(10)),
+        mode="wb",
+        dynamic=["momentum", "property"],
+        filter=hoomd.filter.All(),
+        logger=gsd_logger,
+    )
+    gsd_writer.maximum_write_buffer_size = 64 * 1024 * 1024
+
+    table_file = hoomd.write.Table(
+        output=open('log.txt', mode="w", newline="\n"),
+        trigger=hoomd.trigger.Periodic(period=int(10)),
+        logger=logger,
+        max_header_len=None,
+    )
+    sim.operations.writers.append(gsd_writer)
+    sim.operations.writers.append(table_file)
+
+def check_pair_energy(step_cut):
+    """Check whether the pair interaction energy has equilibrated.
+
+    Pair energies are read from the HOOMD log file and analyzed
+    using pymbar timeseries equilibration detection.
+
+    Parameters
+    ----------
+    step_cut : int
+        Number of initial simulation steps to discard before
+        performing equilibration analysis.
+
+    Returns
+    -------
+    bool
+        True if the pair energy timeseries is determined
+        to be equilibrated, otherwise False.
+
+    """
+    log = np.genfromtxt("log.txt", names=True)
+    pairs = log["mdpairDPDenergy"]
+    shrink_cut = step_cut
+    equil, t0, g, neff = is_equilibrated(data=pairs[shrink_cut:], threshold_neff=50) 
+    if equil:
         return True
     else:
         return False
