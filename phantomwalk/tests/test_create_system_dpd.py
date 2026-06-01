@@ -1,6 +1,7 @@
 import pytest
 import datetime
 import os
+from contextlib import suppress
 
 import sys
 import os
@@ -15,14 +16,9 @@ def test_creation():
 def test_custom_log_files():
     # remove files that might've been output by other tests so that file loading
     # can fail if it's wrong
-    try:
+    with suppress(FileNotFoundError):
         os.remove('trajectory.gsd')
-    except:
-        pass
-    try:
         os.remove('log.txt')
-    except:
-        pass
 
     time_string = datetime.datetime.now().strftime("%Y-%m-%d-%H-%M-%S")
     gsd_file_name = f"{time_string}.gsd"
